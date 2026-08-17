@@ -442,13 +442,18 @@ struct llama_mmap::impl {
 #ifdef _POSIX_MAPPED_FILES
     std::vector<std::pair<size_t, size_t>> mapped_fragments;
 
-    impl(struct llama_file * file, size_t prefetch, bool numa) {
+    impl(struct llama_file * file, size_t prefetch, bool random_access) {
         size = file->size();
         int fd = file->file_id();
         int flags = MAP_SHARED;
-        if (numa) { prefetch = 0; }
+        if (random_access) { prefetch = 0; }
 #ifdef __linux__
-        if (posix_fadvise(fd, 0, 0, POSIX_FADV_SEQUENTIAL)) {
+        if (random_access) {
+            if (posix_fadvise(fd, 0, 0, POSIX_FADV_RANDOM)) {
+                LLAMA_LOG_WARN("warning: posix_fadvise(.., POSIX_FADV_RANDOM) failed: %s\n",
+                        strerror(errno));
+            }
+        } else if (posix_fadvise(fd, 0, 0, POSIX_FADV_SEQUENTIAL)) {
             LLAMA_LOG_WARN("warning: posix_fadvise(.., POSIX_FADV_SEQUENTIAL) failed: %s\n",
                     strerror(errno));
         }
@@ -465,7 +470,7 @@ struct llama_mmap::impl {
                         strerror(errno));
             }
         }
-        if (numa) {
+        if (random_access) {
             if (posix_madvise(addr, file->size(), POSIX_MADV_RANDOM)) {
                 LLAMA_LOG_WARN("warning: posix_madvise(.., POSIX_MADV_RANDOM) failed: %s\n",
                         strerror(errno));
@@ -533,8 +538,8 @@ struct llama_mmap::impl {
 #elif defined(_WIN32)
     HANDLE hMapping = nullptr;
 
-    impl(struct llama_file * file, size_t prefetch, bool numa) {
-        GGML_UNUSED(numa);
+    impl(struct llama_file * file, size_t prefetch, bool random_access) {
+        GGML_UNUSED(random_access);
 
         size = file->size();
 
@@ -597,10 +602,10 @@ struct llama_mmap::impl {
         }
     }
 #else
-    impl(struct llama_file * file, size_t prefetch, bool numa) {
+    impl(struct llama_file * file, size_t prefetch, bool random_access) {
         GGML_UNUSED(file);
         GGML_UNUSED(prefetch);
-        GGML_UNUSED(numa);
+        GGML_UNUSED(random_access);
 
         throw std::runtime_error("mmap not supported");
     }
@@ -617,7 +622,7 @@ struct llama_mmap::impl {
     size_t size;
 };
 
-llama_mmap::llama_mmap(struct llama_file * file, size_t prefetch, bool numa) : pimpl(std::make_unique<impl>(file, prefetch, numa)) {}
+llama_mmap::llama_mmap(struct llama_file * file, size_t prefetch, bool random_access) : pimpl(std::make_unique<impl>(file, prefetch, random_access)) {}
 llama_mmap::~llama_mmap() = default;
 
 size_t llama_mmap::size() const { return pimpl->size; }

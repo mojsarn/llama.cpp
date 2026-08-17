@@ -78,6 +78,7 @@ struct llama_model_loader {
 
     bool use_mmap = false;
     bool use_direct_io = false;
+    bool mmap_lazy = false; // mmap without prefetch, advise kernel for random access (LLAMA_LOAD_MODE_MMAP_LAZY)
     bool check_tensors;
     bool no_alloc;
     bool load_mtp;

@@ -42,7 +42,10 @@ private:
 
 struct llama_mmap {
     llama_mmap(const llama_mmap &) = delete;
-    llama_mmap(struct llama_file * file, size_t prefetch = (size_t) -1, bool numa = false);
+    // random_access: advise the kernel for random access (MADV_RANDOM, no readahead) instead of the
+    // default sequential hint; also implies no eager prefetch. Used for NUMA and for lazily-mapped
+    // large sparse/MoE models.
+    llama_mmap(struct llama_file * file, size_t prefetch = (size_t) -1, bool random_access = false);
     ~llama_mmap();
 
     size_t size() const;
